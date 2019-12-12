@@ -1,0 +1,63 @@
+'use strict';
+
+console.log('Loading function');
+var AWS = require('aws-sdk'),
+	uuid = require('uuid'),
+	documentClient = new AWS.DynamoDB.DocumentClient(); 
+
+var S3 = new AWS.S3({
+    maxRetries: 0,
+    region: 'us-east-1',
+});
+
+var insertSuccess = 0;
+var insertErrors = 0;
+
+exports.handler = (event, context, callback) => {
+    console.log('Received event:', JSON.stringify(event, null, 2));
+    console.log("Init complete, running.. \n")
+
+    var srcBucket = event.Records[0].s3.bucket.name;
+    var srcKey = event.Records[0].s3.object.key;
+
+    console.log("Params: srcBucket: " + srcBucket + " srcKey: " + srcKey + "\n")
+
+    S3.getObject({
+        Bucket: srcBucket,
+        Key: srcKey,
+    }, function(err, data) {
+        if (err !== null) {
+            return callback(err, null);
+        }
+        console.log(' data from s3 :::::: '+data.Body)
+              var record = JSON.parse(data.Body);
+              console.log("Inserting record: " + record["ContactId"]);
+              
+              console.log("data  record: " + record["ContactId"]);
+            var attr = record['Attributes'];
+            //print('attr '+JSON.stringify(attr));
+            var custom_attr= {};
+            custom_attr['ContactId']=record["ContactId"];
+            var obj = {a: 1, b: 2};
+            for (var key in attr) {
+              if (attr.hasOwnProperty(key)) {
+              var val = attr[key];
+               custom_attr[key]=val;
+                //print(key);
+                }
+            }
+            var params = {
+                Item: custom_attr,
+                ReturnConsumedCapacity: "TOTAL",
+                TableName: "ContactData"
+            };
+            documentClient.put(params, function(err, data) {
+            if (err) {
+              console.error("Unable to add item. Error JSON:", JSON.stringify(err, null, 2));
+                } else {
+                console.log("Added item:", JSON.stringify(data, null, 2));
+              }
+            });
+        return callback(null, data);
+    });
+};
